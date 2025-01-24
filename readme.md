@@ -61,6 +61,20 @@ The system follows a microservices-based architecture where each component has a
 - **Hugging Face**: A single service (HF Agent) handles both functions
 - **Backend**: Shared for query execution
 - **UI**: Same entry point for both flows
+
+
+# 🔌 Conexiones y Puertos de los Servicios
+
+## Estructura de Red del Sistema
+
+| Servicio         | Accesible por         | Puertos      | Descripción                          |
+|------------------|-----------------------|--------------|--------------------------------------|
+| **db**           | `backend`             | `5432:5432`  | PostgreSQL Database                  |
+| **backend**      | `UI`                  | `5000:5000`  | API de Ejecución de Queries SQL      |
+| **text_to_sql**  | `UI`                  | `8000:8000`  | Traductor NL → SQL (OpenAI)          |
+| **hf_agent**     | `UI`                  | `9100:9100`  | Servicio HuggingFace (google/gemma-2-9b-it)   |
+| **llm_responder**| `UI`                  | `9200:9200`  | Generador de Respuestas (OpenAI)     |
+| **UI**           | `Usuarios Externos`   | `8080:8080`  | Interfaz Web Principal               |
 ## 🛠️ Getting Started
 
 ### Prerequisites

@@ -26,24 +26,24 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5000:5000"  # Exposed for debugging
+    #ports:
+    #  - "5000:5000"  # Exposed for debugging
 
   text_to_sql:
     build: ./text_to_sql
     container_name: openai_sql_translator
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-    ports:
-      - "8000:8000"
+    #ports:
+    #  - "8000:8000"
 
   llm_responder:
     build: ./llm_responder
     container_name: openai_summarizer
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-    ports:
-      - "9000:9000"
+    #ports:
+    #  - "9000:9000"
 
   hf_agent:
     build: ./hf_agent
@@ -61,8 +61,8 @@ services:
         limits:
           cpus: '1.5'
           memory: 4G
-    ports:
-      - "9100:9100"
+    #ports:
+    #  - "9100:9100"
 
   ui:
     build: ./ui
