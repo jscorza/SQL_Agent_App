@@ -117,39 +117,6 @@ http://localhost:8080
 
 ---
 
-**OS-Specific Notes:**  
-🔹 **Windows:**  
-- Use PowerShell instead of CMD  
-- Ensure Docker Desktop is running in Linux container mode  
-
-🔹 **Mac:**  
-- Allow Docker Desktop through firewall if prompted  
-- Apple Silicon: Add `platform: linux/amd64` to `hf_agent` service if needed  
-
-🔹 **Linux:**  
-- Run with `sudo` if needed for Docker permissions  
-- Verify ports 5432/8080 are available
-
-### First-Time Setup Notes
-1. CSV Requirements:
-   - Header row matching `sales` table schema
-   - Date format: YYYY-MM-DD
-   - Sample row: `2023-01-15,Monday,14:30,TKT-00142,5,Espresso,2,2.50,5.00`
-
-2. Health Checks:
-   - Database: `curl http://localhost:5432`
-   - Backend: `curl http://localhost:5000/healthcheck`
-   - Hugging Face Agent: `curl http://localhost:9100/healthcheck`
-
-3. Resource Management:
-   - HF Agent limited to 1.5 CPUs/4GB RAM
-   - PostgreSQL data persists via Docker volume
-
-## 💡 Usage Tips
-- **Model Switching**: Toggle between OpenAI and Hugging Face using radio buttons
-- **Error Inspection**: Click "Show Technical Details" for debugging info
-- **Data Reset**: Use top-right Reset button to clear conversation history
-- **Direct SQL**: POST raw queries to `http://localhost:5000/query` (JSON payload)
 
 ## 🔄 Typical Workflow
 1. User asks "What's the top selling product?"
@@ -159,3 +126,28 @@ http://localhost:8080
 5. Technical details available via toggle
 
 ![Interface Demo](./img/interfaz.png)
+
+## 📋 Example Questions Explorer  
+- What is the most bought product on Fridays?  
+- Which product had the biggest single ticket sale in terms of ‘total’?  
+- Which waiter served the most customers?  
+- Which day of the week has the highest sales volume?  
+- how many prodcuts i have in my database?  
+- how much money did we made on each year?  
+- Which product generated the most revenue?  
+- Which product is the most sold overall?  
+- what are the top 3 products on total revenue only on mondays?  
+- Which product has the greatest total revenue for a single day?  
+- what are the 5 least bought products on weekends?  
+- Find the total money spent (sum of total) by day of week, but only for product_name = 'Alfajor Vegano x un'?  
+- How many distinct ticket_number entries are there in total?  
+- What is the average unitary_price of all products sold?  
+- How many rows are in the sales table?  
+- Which hour of Friday has the greatest quantity sold?  
+
+
+
+---
+---
+*by juaniscorza* 
+  
