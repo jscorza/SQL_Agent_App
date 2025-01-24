@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="chat-container">
+    {% for msg in conversation %}
+        <div class="message {% if msg.role == 'user' %}user-msg{% else %}system-msg{% endif %}">
+            <img 
+                src="{{ url_for('static', filename='user-icon.png') if msg.role == 'user' else url_for('static', filename='robot-icon.png') }}" 
+                alt="{{ msg.role }}" 
+                class="avatar"
+            >
+            <div class="bubble">
+                <div class="message-header">
+                    <strong>{{ 'User' if msg.role == 'user' else 'System' }}</strong>
+                    {% if msg.role == 'system' %}
+                        <span class="model-indicator">
+                            {% if msg.model_used == 'openai' %}
+                                🤖 OpenAI (gpt-4)
+                            {% else %}
+                             🤗 HuggingFace (gemma-2-9b-it)
+                            {% endif %}
+                        </span>
+                    {% endif %}
+                </div>
+                
+                {% if msg.role == 'user' %}
+                    <pre class="user-question">{{ msg.text }}</pre>
+                {% else %}
+                    {% if msg.error %}
+                        <div class="error-message">
+                            <div class="error-header">
+                                {{ msg.friendly_text }}
+                                {% if msg.technical_details %}
+                                    <button class="details-btn error-details-btn" onclick="toggleDetails('error-details-{{ loop.index }}')">
+                                        Show Technical Details
+                                    </button>
+                                {% endif %}
+                            </div>
+                            
+                            {% if msg.technical_details %}
+                                <div id="error-details-{{ loop.index }}" class="details error-details">
+                                    <div class="technical-section">
+                                        <pre>{{ msg.technical_details }}</pre>
+                                        {% if msg.sql and msg.sql != "NO_SQL_GENERATED" %}
+                                            <p class="error-subtitle">Generated SQL:</p>
+                                            <pre class="sql-code">{{ msg.sql }}</pre>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <!-- Sección para respuestas exitosas -->
+                        <pre>{{ msg.friendly_text }}</pre>
+                        
+                        {% if msg.sql or msg.raw_results %}
+                            <button class="details-btn" onclick="toggleDetails('success-details-{{ loop.index }}')">
+                                Show Technical Details
+                            </button>
+                            <div id="success-details-{{ loop.index }}" class="details">
+                                {% if msg.sql %}
+                                    <div class="sql-section">
+                                        <p><strong>Generated SQL:</strong></p>
+                                        <pre class="sql-code">{{ msg.sql }}</pre>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if msg.raw_results %}
+                                    <div class="results-section">
+                                        <p><strong>Results ({{ msg.raw_results|length }} rows):</strong></p>
+                                        {% if msg.raw_results|length == 0 %}
+                                            <div class="no-results">No data found</div>
+                                        {% else %}
+                                            <div class="table-container">
+                                                <table class="results-table">
+                                                    <tr>
+                                                        {% for col in msg.raw_results[0].keys() %}
+                                                            <th>{{ col }}</th>
+                                                        {% endfor %}
+                                                    </tr>
+                                                    {% for row in msg.raw_results %}
+                                                        <tr>
+                                                            {% for val in row.values() %}
+                                                                <td>{{ val }}</td>
+                                                            {% endfor %}
+                                                        </tr>
+                                                    {% endfor %}
+                                                </table>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<div class="ask-form">
+    <form action="/ask" method="POST" onsubmit="handleSubmit(event)">
+        <div class="model-selector">
+            <div class="model-option">
+                <input 
+                    type="radio" 
+                    id="openai" 
+                    name="model_choice" 
+                    value="openai" 
+                    checked
+                    class="model-radio"
+                >
+                <label for="openai" class="model-label">
+                    <span class="model-icon">🤖</span>
+                    <span class="model-name">OpenAI</span>
+                </label>
+            </div>
+            <div class="model-option">
+                <input 
+                    type="radio" 
+                    id="huggingface" 
+                    name="model_choice" 
+                    value="huggingface"
+                    class="model-radio"
+                >
+                <label for="huggingface" class="model-label">
+                    <span class="model-icon">🤗</span>
+                    <span class="model-name">HuggingFace</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <input 
+                class="input-text" 
+                type="text" 
+                name="question"
+                placeholder="Ask about your sales data..." 
+                required
+            >
+            <button class="send-btn" type="submit" id="submit-btn">
+                <span class="btn-text">Send</span>
+                <div class="spinner hidden" id="spinner"></div>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Funciones existentes
+function toggleDetails(id) {
+    const elem = document.getElementById(id);
+    const isVisible = elem.classList.toggle('visible');
+    
+    const buttons = document.querySelectorAll(`button[onclick="toggleDetails('${id}')"]`);
+    
+    buttons.forEach(btn => {
+        btn.textContent = isVisible ? "Hide Technical Details" : "Show Technical Details";
+        
+        if(btn.classList.contains('error-details-btn')) {
+            btn.style.backgroundColor = isVisible ? '#c62828' : 'transparent';
+            btn.style.color = isVisible ? 'white' : '#c62828';
+        }
+    });
+}
+
+// Nueva funcionalidad de scroll
+document.addEventListener('DOMContentLoaded', () => {
+    const lastScroll = sessionStorage.getItem('chatScrollPos');
+    if (lastScroll) {
+        const chatContainer = document.querySelector('.chat-container');
+        chatContainer.scrollTop = lastScroll;
+        sessionStorage.removeItem('chatScrollPos');
+    }
+    scrollToBottom();
+});
+
+function scrollToBottom() {
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+}
+
+function handleSubmit(e) {
+    // Guardar scroll position
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+        sessionStorage.setItem('chatScrollPos', chatContainer.scrollTop);
+    }
+    
+    // Existing spinner logic
+    const btn = document.getElementById('submit-btn');
+    const spinner = document.getElementById('spinner');
+    const btnText = document.querySelector('.btn-text');
+    
+    if (btn && spinner && btnText) {
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        btnText.textContent = 'Processing...';
+    }
+    
+    // Scroll handling
+    setTimeout(scrollToBottom, 100);
+}
+</script>
+
+{% endblock %}

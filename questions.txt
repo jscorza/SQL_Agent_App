@@ -1,0 +1,16 @@
+\What is the most bought product on Fridays?
+Which product had the biggest single ticket sale in terms of ‘total’
+Which waiter served the most customers
+Which day of the week has the highest sales volume?
+how many prodcuts i have in my database?
+how much money did we made on each year?
+Which product generated the most revenue
+Which product is the most sold overall
+what are the top 3 products on total revenue only on mondays
+Which product has the greatest total revenue for a single day?
+what are the 5 least bought products on weekends
+Find the total money spent (sum of total) by day of week, but only for product_name = 'Alfajor Vegano x un'
+How many distinct ticket_number entries are there in total?
+What is the average unitary_price of all products sold?
+How many rows are in the sales table?
+Which hour of Friday has the greatest quantity sold?

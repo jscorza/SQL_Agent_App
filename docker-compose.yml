@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    container_name: sales_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"  # Exposed for external tools (optional)
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data/data.csv:/docker-entrypoint-initdb.d/data.csv
+      - pg_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: query_backend
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5000:5000"  # Exposed for debugging
+
+  text_to_sql:
+    build: ./text_to_sql
+    container_name: openai_sql_translator
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+
+  llm_responder:
+    build: ./llm_responder
+    container_name: openai_summarizer
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "9000:9000"
+
+  hf_agent:
+    build: ./hf_agent
+    container_name: huggingface_agent
+    environment:
+      HF_API_TOKEN: ${HF_API_TOKEN}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9100/healthcheck"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 4G
+    ports:
+      - "9100:9100"
+
+  ui:
+    build: ./ui
+    container_name: sales_analytics_ui
+    depends_on:
+      - backend
+      - hf_agent
+      - llm_responder
+      - text_to_sql
+    environment:
+      TEXT_TO_SQL_URL: "http://text_to_sql:8000/translate"
+      BACKEND_URL: "http://backend:5000/query"
+      LLM_RESPONDER_URL: "http://llm_responder:9000/summarize"
+    ports:
+      - "8080:8080"
+
+volumes:
+  pg_data:  # Named volume for persistent database storage
