@@ -143,7 +143,6 @@ http://localhost:8080
 
 ## 📋 Example Questions Explorer  
 - What is the most bought product on Fridays?  
-- Which product had the biggest single ticket sale in terms of ‘total’?  
 - Which waiter served the most customers?  
 - Which day of the week has the highest sales volume?  
 - how many prodcuts i have in my database?  
