@@ -70,7 +70,7 @@ Below is a comprehensive explanation of how to scale and strengthen the project 
 
 ### 4.1. S3 + CloudFront
 
-- If the UI is mostly static (HTML/JS/CSS), store it in an **S3** bucket and serve via **CloudFront** as a CDN.
+- Make the UI mostly static (HTML/JS/CSS), store it in an **S3** bucket and serve via **CloudFront** as a CDN.
 - Only dynamic (API) calls would then go to ECS/EKS containers, reducing container load.
 
 ### 4.2. UI Auto-Scaling
