@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-# Leemos las variables de entorno para la conexión
+# Database connection configuration
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '5432')
 DB_NAME = os.getenv('DB_NAME', 'mydatabase')
@@ -12,60 +12,54 @@ DB_USER = os.getenv('DB_USER', 'myuser')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'mypassword')
 
 def get_db_connection():
-    """Crea y retorna una conexión a la base de datos PostgreSQL."""
-    conn = psycopg2.connect(
+    """Create PostgreSQL database connection using environment variables."""
+    return psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         dbname=DB_NAME,
         user=DB_USER,
         password=DB_PASSWORD
     )
-    return conn
 
 @app.route('/healthcheck', methods=['GET'])
 def healthcheck():
-    """Verifica si el servicio está vivo."""
+    """Basic service health monitoring endpoint."""
     return jsonify({"status": "ok"}), 200
 
 @app.route('/query', methods=['POST'])
 def run_query():
     """
-    Recibe un JSON tipo: {"sql": "SELECT * FROM sales LIMIT 10"} 
-    Ejecuta la query en PostgreSQL y retorna los resultados en JSON.
+    Execute SQL query against PostgreSQL database.
+    Accepts JSON payload: {"sql": "SELECT ..."}
+    Returns JSON response with results or error message.
     """
     data = request.get_json()
-    sql_query = data.get("sql", "")  # Obtenemos la sentencia SQL desde el JSON
+    sql_query = data.get("sql", "").strip()
     
     if not sql_query:
         return jsonify({"error": "No SQL query provided"}), 400
 
-    # Conectarnos a la DB, ejecutar la query
     conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute(sql_query)
-        # Si es un SELECT, intentamos obtener los rows
-        if cursor.description:
+        
+        # Handle SELECT vs non-SELECT queries
+        if cursor.description:  # SELECT queries return description
             columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            # Convertimos los resultados a lista de dicts (col: valor)
-            results = []
-            for row in rows:
-                row_dict = dict(zip(columns, row))
-                results.append(row_dict)
-            
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
             return jsonify({"results": results}), 200
-        else:
-            # Para sentencias como INSERT, UPDATE, etc.
+        else:  # INSERT/UPDATE/DELETE queries
             conn.commit()
             return jsonify({"message": "Query executed successfully"}), 200
     except Exception as e:
+        conn.rollback()  # Ensure transaction safety
         return jsonify({"error": str(e)}), 400
     finally:
         cursor.close()
         conn.close()
 
 if __name__ == '__main__':
-    # Iniciamos Flask en el puerto 5000
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Start application with production settings
+    app.run(host='0.0.0.0', port=5000)

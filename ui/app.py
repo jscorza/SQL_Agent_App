@@ -3,39 +3,34 @@ import requests
 import os
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'supersecretkey')
 
 conversation = []
 
-TEXT_TO_SQL_URL = os.getenv("TEXT_TO_SQL_URL", "http://text_to_sql:8000/translate")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:5000/query")
-LLM_RESPONDER_URL = os.getenv("LLM_RESPONDER_URL", "http://llm_responder:9000/summarize")
-
-HF_AGENT_TRANSLATE = os.getenv("HF_AGENT_TRANSLATE", "http://hf_agent:9100/translate")
-HF_AGENT_SUMMARIZE = os.getenv("HF_AGENT_SUMMARIZE", "http://hf_agent:9100/summarize")
-
+# Service endpoints configuration
 MODEL_CONFIG = {
     "openai": {
-        "translate": TEXT_TO_SQL_URL,
-        "summarize": LLM_RESPONDER_URL
+        "translate": os.getenv("TEXT_TO_SQL_URL", "http://text_to_sql:8000/translate"),
+        "summarize": os.getenv("LLM_RESPONDER_URL", "http://llm_responder:9000/summarize")
     },
     "huggingface": {
-        "translate": HF_AGENT_TRANSLATE,
-        "summarize": HF_AGENT_SUMMARIZE
+        "translate": os.getenv("HF_AGENT_TRANSLATE", "http://hf_agent:9100/translate"),
+        "summarize": os.getenv("HF_AGENT_SUMMARIZE", "http://hf_agent:9100/summarize")
     }
 }
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:5000/query")
 
 @app.route('/')
 def index():
     return render_template('index.html', conversation=conversation)
 
-def handle_hf_response_err(response):
-    """Manejo de error en la respuesta HF si viene 503, etc."""
+def handle_api_error(response):
+    """Handle non-JSON responses from external APIs."""
     try:
-        err_json = response.json()
-        return err_json
-    except:
-        return {"error": response.text}
+        return response.json()
+    except requests.JSONDecodeError:
+        return {'error': response.text}
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -45,78 +40,110 @@ def ask():
     if not user_question:
         return redirect(url_for('index'))
 
-    # Nuevas variables para manejo de errores
-    friendly_text = ""
-    technical_details = ""
-    raw_sql = "NO_SQL_GENERATED"
-    raw_results = []
-    error_occurred = False
+    response_data = {
+        'friendly_text': '',
+        'technical_details': '',
+        'raw_sql': 'NO_SQL_GENERATED',
+        'raw_results': [],
+        'error': False
+    }
 
     try:
-        translate_url = MODEL_CONFIG[model_choice]['translate']
-        resp_t = requests.post(translate_url, json={"question": user_question}, timeout=180)
+        # Translation phase
+        translate_response = requests.post(
+            MODEL_CONFIG[model_choice]['translate'],
+            json={'question': user_question},
+            timeout=10
+        )
         
-        if resp_t.status_code != 200:
-            error_occurred = True
-            friendly_text = "⚠️ Couldn't process your question. Please try again."
-            technical_details = f"Translate Error {resp_t.status_code}: {handle_hf_response_err(resp_t)}"
-        else:
-            t_data = resp_t.json()
-            if "sql" not in t_data:
-                error_occurred = True
-                friendly_text = "🔍 Invalid question format. Please be more specific."
-                technical_details = f"Missing 'sql' in response: {t_data}"
+        if translate_response.status_code != 200:
+            response_data.update({
+                'error': True,
+                'friendly_text': '⚠️ Could not process your question',
+                'technical_details': f'Translation Error {translate_response.status_code}: {handle_api_error(translate_response)}'
+            })
+            return commit_conversation(user_question, response_data)
+
+        translate_data = translate_response.json()
+        if 'sql' not in translate_data:
+            response_data.update({
+                'error': True,
+                'friendly_text': '🔍 Invalid question format',
+                'technical_details': f'Missing SQL in response: {translate_data}'
+            })
+            return commit_conversation(user_question, response_data)
+
+        # Query execution phase
+        query_response = requests.post(
+            BACKEND_URL,
+            json={'sql': translate_data['sql']},
+            timeout=15
+        )
+        
+        if query_response.status_code != 200:
+            response_data.update({
+                'error': True,
+                'friendly_text': '🔍 Issue executing query',
+                'technical_details': f'Backend Error {query_response.status_code}: {query_response.text[:200]}',
+                'raw_sql': translate_data['sql']
+            })
+            return commit_conversation(user_question, response_data)
+
+        query_data = query_response.json()
+        response_data['raw_results'] = query_data.get('results', [])
+        response_data['raw_sql'] = translate_data['sql']
+
+        # Results summarization
+        if response_data['raw_results']:
+            summarize_response = requests.post(
+                MODEL_CONFIG[model_choice]['summarize'],
+                json={
+                    'question': user_question,
+                    'sql': response_data['raw_sql'],
+                    'results': response_data['raw_results']
+                },
+                timeout=15
+            )
+            
+            if summarize_response.status_code != 200:
+                response_data.update({
+                    'error': True,
+                    'friendly_text': '📝 Summary generation failed',
+                    'technical_details': f'Summarization Error {summarize_response.status_code}: {handle_api_error(summarize_response)}'
+                })
             else:
-                raw_sql = t_data["sql"]
-                resp_b = requests.post(BACKEND_URL, json={"sql": raw_sql}, timeout=30)
-                
-                if resp_b.status_code != 200:
-                    error_occurred = True
-                    friendly_text = "🔍 We found an issue with your question. Please rephrase it."
-                    technical_details = f"Backend Error {resp_b.status_code}: {resp_b.text[:200]}"
-                else:
-                    b_data = resp_b.json()
-                    raw_results = b_data.get("results", [])
-                    
-                    if raw_results:
-                        summarize_url = MODEL_CONFIG[model_choice]['summarize']
-                        s_payload = {"question": user_question, "sql": raw_sql, "results": raw_results}
-                        resp_s = requests.post(summarize_url, json=s_payload, timeout=180)
-                        
-                        if resp_s.status_code != 200:
-                            error_occurred = True
-                            friendly_text = "📝 We couldn't summarize the results. Try another question."
-                            technical_details = f"Summarize Error {resp_s.status_code}: {handle_hf_response_err(resp_s)}"
-                        else:
-                            s_data = resp_s.json()
-                            friendly_text = s_data.get("summary", "No summary returned")
-                    else:
-                        friendly_text = "✅ Query executed successfully (no results returned)"
-    
+                response_data['friendly_text'] = summarize_response.json().get('summary', 'No summary available')
+
+        else:
+            response_data['friendly_text'] = '✅ Query executed successfully (no results)'
+
     except requests.exceptions.RequestException as e:
-        error_occurred = True
-        friendly_text = "🔌 Connection error. Please check your internet."
-        technical_details = f"RequestException: {str(e)}"
+        response_data.update({
+            'error': True,
+            'friendly_text': '🔌 Connection issue',
+            'technical_details': f'Network Error: {str(e)}'
+        })
     except Exception as e:
-        error_occurred = True
-        friendly_text = "❌ Unexpected error. Contact support."
-        technical_details = f"General error: {str(e)}"
+        response_data.update({
+            'error': True,
+            'friendly_text': '❌ System error',
+            'technical_details': f'Unexpected Error: {str(e)}'
+        })
 
-    conversation.append({
-        "role": "user",
-        "text": user_question  # Aseguramos que el user message tenga "text"
-    })
-    
-    conversation.append({
-        "role": "system",
-        "friendly_text": friendly_text,
-        "technical_details": technical_details if error_occurred else "",
-        "sql": raw_sql,
-        "raw_results": raw_results,
-        "model_used": model_choice,
-        "error": error_occurred
-    })
+    return commit_conversation(user_question, response_data)
 
+def commit_conversation(question, response_data):
+    """Store conversation history and redirect to index."""
+    conversation.append({'role': 'user', 'text': question})
+    conversation.append({
+        'role': 'system',
+        'friendly_text': response_data['friendly_text'],
+        'technical_details': response_data['technical_details'],
+        'sql': response_data['raw_sql'],
+        'raw_results': response_data['raw_results'],
+        'model_used': request.form.get('model_choice', 'openai'),
+        'error': response_data['error']
+    })
     return redirect(url_for('index'))
 
 @app.route('/reset')
@@ -125,4 +152,4 @@ def reset():
     return redirect(url_for('index'))
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=False)
+    app.run(host="0.0.0.0", port=8080)
