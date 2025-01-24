@@ -174,4 +174,3 @@ Below is a comprehensive explanation of how to scale and strengthen the project 
 8. **Billing**: Monitor token usage (OpenAI/Hugging Face), scale ECS/EKS and RDS responsibly, use budget alarms.  
 9. **Fine-Tuned Model**: Optionally host a specialized LLM on EC2 GPU or SageMaker with re-training scripts to keep the system consistent with schema changes.
 
-With these strategies, the project becomes **elastic**, handles large data sets, supports conversation context, maintains security (DB roles, restricted queries), and effectively manages operational costs. 
