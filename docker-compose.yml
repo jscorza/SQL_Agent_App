@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    container_name: my_postgres_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data/data.csv:/docker-entrypoint-initdb.d/data.csv
+      - ./dbdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: my_backend
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5000:5000"
+
+  text_to_sql:
+    build: ./text_to_sql
+    container_name: my_text_to_sql
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+  llm_responder:
+    build: ./llm_responder
+    container_name: my_llm_responder
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "9000:9000"
+
+  hf_agent:
+    build: ./hf_agent
+    container_name: my_hf_agent
+    environment:
+      HF_API_TOKEN: ${HF_API_TOKEN}
+    ports:
+      - "9100:9100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9100/healthcheck"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 4G
+
+  ui:
+    build: ./ui
+    container_name: my_ui
+    depends_on:
+      - hf_agent
+      - backend
+      - text_to_sql
+      - llm_responder
+    ports:
+      - "8080:8080"
+    environment:
+      TEXT_TO_SQL_URL: "http://text_to_sql:8000/translate"
+      BACKEND_URL: "http://backend:5000/query"
+      LLM_RESPONDER_URL: "http://llm_responder:9000/summarize"
