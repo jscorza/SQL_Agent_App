@@ -63,18 +63,20 @@ The system follows a microservices-based architecture where each component has a
 - **UI**: Same entry point for both flows
 
 
-# 🔌 Conexiones y Puertos de los Servicios
+## 🔌 Service Connections and Ports  
+*(ports are open in dev, but will be closed in prod)*  
 
-## Estructura de Red del Sistema
+### Network Structure of the System  
 
-| Servicio         | Accesible por         | Puertos      | Descripción                          |
-|------------------|-----------------------|--------------|--------------------------------------|
-| **db**           | `backend`             | `5432:5432`  | PostgreSQL Database                  |
-| **backend**      | `UI`                  | `5000:5000`  | API de Ejecución de Queries SQL      |
-| **text_to_sql**  | `UI`                  | `8000:8000`  | Traductor NL → SQL (OpenAI)          |
-| **hf_agent**     | `UI`                  | `9100:9100`  | Servicio HuggingFace (google/gemma-2-9b-it)   |
-| **llm_responder**| `UI`                  | `9200:9200`  | Generador de Respuestas (OpenAI)     |
-| **UI**           | `Usuarios Externos`   | `8080:8080`  | Interfaz Web Principal               |
+| Service          | Accessible By         | Ports       | Description                          |  
+|------------------|-----------------------|-------------|--------------------------------------|  
+| **db**           | `backend`             | `5432:5432` | PostgreSQL Database                  |  
+| **backend**      | `UI`                  | `5000:5000` | SQL Query Execution API              |  
+| **text_to_sql**  | `UI`                  | `8000:8000` | NL → SQL Translator (OpenAI)         |  
+| **hf_agent**     | `UI`                  | `9100:9100` | HuggingFace Service (google/gemma-2-9b-it) |  
+| **llm_responder**| `UI`                  | `9200:9200` | Response Generator (OpenAI)          |  
+| **UI**           | `External Users`      | `8080:8080` | Main Web Interface                   |  
+
 ## 🛠️ Getting Started
 
 ### Prerequisites
